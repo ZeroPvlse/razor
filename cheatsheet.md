@@ -1,12 +1,10 @@
-# SMB Pentest Orchestrator — Build Cheatsheet
-
-A terse, practical reference for building a one-command, low-noise SMB pen-test tool.
+# razor - rapid assesment, zero noise ops runner
 
 ---
 
 ## Goals (anchor)
 
-* **One command:** `pentest run engagement.yaml`
+* **One command:** `razor run engagement.yaml`
 * **Safe by default:** passive → safe-active → optional intrusive.
 * **Low noise:** curated templates/wordlists, strong dedupe.
 * **Clear output:** Exec PDF, Tech HTML, JSON findings.
