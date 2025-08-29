@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="razor_logo.jpg" alt="Razor Logo" width="280"/>
+  <img src="razor_logo.png" alt="Razor Logo" width="280"/>
 </p>
 
 <h1 align="center">Razor</h1>
