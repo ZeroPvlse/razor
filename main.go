@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/ZeroPvlse/razor/config"
 	"github.com/ZeroPvlse/razor/defaults"
 	"github.com/ZeroPvlse/razor/mess"
 	"github.com/akamensky/argparse"
@@ -16,74 +17,14 @@ import (
 // for tomorrow
 // somehow embed nmap and gobuster (doable)
 
-// ISOTime accepts "" or RFC3339 like "2025-09-01T19:00:00Z".
-type ISOTime struct{ time.Time }
-
-func (t *ISOTime) UnmarshalYAML(node *yaml.Node) error {
-	if node == nil || node.Value == "" {
-		*t = ISOTime{} // zero = not set
-		return nil
-	}
-	tt, err := time.Parse(time.RFC3339, node.Value)
-	if err != nil {
-		return fmt.Errorf("invalid RFC3339 time %q: %w", node.Value, err)
-	}
-	*t = ISOTime{tt}
-	return nil
-}
-func (t ISOTime) IsZero() bool { return t.Time.IsZero() }
-
-type RazorConfig struct {
-	Name   string `yaml:"name"`
-	Client string `yaml:"client"`
-	Scope  Scope  `yaml:"scope"`
-	Limits Limits `yaml:"limits"`
-	Report Report `yaml:"report"`
-	Notes  Notes  `yaml:"notes"`
-}
-
-type Scope struct {
-	Targets        []string   `yaml:"targets"`
-	IncludePorts   []int      `yaml:"include_ports"`
-	MaxHosts       int        `yaml:"max_hosts"`
-	AllowIntrusive bool       `yaml:"allow_intrusive"`
-	TimeWindow     TimeWindow `yaml:"time_window"`
-}
-
-type TimeWindow struct {
-	Start ISOTime `yaml:"start"`
-	End   ISOTime `yaml:"end"`
-}
-
-type Limits struct {
-	RPSPerHost           int `yaml:"rps_per_host"`
-	TotalRequestsPerHost int `yaml:"total_requests_per_host"`
-	Concurrency          int `yaml:"concurrency"`
-	ConnectTimeoutS      int `yaml:"connect_timeout_s"`
-	RequestTimeoutS      int `yaml:"request_timeout_s"`
-	Retries              int `yaml:"retries"`
-}
-
-type Report struct {
-	Deliverables       []string `yaml:"deliverables"` // allowed: pdf_exec, html_tech, json_findings
-	Redactions         bool     `yaml:"redactions"`
-	CVSS               string   `yaml:"cvss"` // e.g. "v3.1"
-	IncludeScreenshots bool     `yaml:"include_screenshots"`
-	OutDir             string   `yaml:"out_dir"`
-}
-
-type Notes struct {
-	StackHints []string `yaml:"stack_hints"`
-	Contacts   []string `yaml:"contacts"`
-	Tags       []string `yaml:"tags"`
-}
-
-func LoadConfig(path string) (*RazorConfig, error) {
+// read config from "*.yaml" provided by user
+// and apply given defaults (this is mess btw)
+func LoadConfig(path string) (*config.Razor, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	var c RazorConfig
+	var c config.Razor
 	if err := yaml.Unmarshal(b, &c); err != nil {
 		return nil, err
 	}
@@ -94,7 +35,7 @@ func LoadConfig(path string) (*RazorConfig, error) {
 	return &c, nil
 }
 
-func applyDefaults(c *RazorConfig) {
+func applyDefaults(c *config.Razor) {
 	// Limits
 	if c.Limits.RPSPerHost == 0 {
 		c.Limits.RPSPerHost = 2
@@ -126,7 +67,7 @@ func applyDefaults(c *RazorConfig) {
 	}
 }
 
-func validate(c RazorConfig) error {
+func validate(c config.Razor) error {
 	if c.Name == "" {
 		return errors.New("name is required")
 	}
@@ -136,7 +77,6 @@ func validate(c RazorConfig) error {
 
 	if len(c.Scope.Targets) == 0 {
 		return errors.New("target needs to be specified")
-
 	}
 	// Scope
 	for _, p := range c.Scope.IncludePorts {
@@ -189,7 +129,8 @@ func main() {
 	parser := argparse.NewParser("print", "Prints provided string to stdout")
 
 	// gen tempate lol
-	template := parser.String("t", "template", &argparse.Options{
+	template := parser.String("g", "gen", &argparse.Options{
+
 		Required: false,
 		Help:     "Generates YAML template required to operate with value taken from flag",
 	})
