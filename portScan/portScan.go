@@ -10,22 +10,32 @@ import (
 	"github.com/ZeroPvlse/razor/config"
 )
 
+// formatPorts returns a comma separated list of ports. An empty slice results
+// in an empty string which lets nmap decide the default port range.
+func formatPorts(ports []int) string {
+	if len(ports) == 0 {
+		return ""
+	}
+	var out []string
+	for _, p := range ports {
+		out = append(out, fmt.Sprintf("%d", p))
+	}
+	return strings.Join(out, ",")
+}
+
 // newScanner creates an nmap.Scanner configured to mimic `nmap -sC -sV -O`.
 // Additional nmap options can be provided which is primarily useful for tests
 // to override the nmap binary path.
 func newScanner(ctx context.Context, cfg config.Razor, opts ...nmap.Option) (*nmap.Scanner, error) {
-	var ports []string
-	for _, port := range cfg.Scope.IncludePorts {
-		ports = append(ports, fmt.Sprintf("%d", port))
-	}
-	portsStr := strings.Join(ports, ",")
+	portsStr := formatPorts(cfg.Scope.IncludePorts)
 
 	options := []nmap.Option{
 		nmap.WithTargets(cfg.Scope.Targets...),
 		nmap.WithPorts(portsStr),
-		nmap.WithDefaultScript(),
 		nmap.WithServiceInfo(),
-		nmap.WithOSDetection(),
+	}
+	if cfg.Scope.AllowIntrusive {
+		options = append(options, nmap.WithDefaultScript(), nmap.WithOSDetection())
 	}
 	options = append(options, opts...)
 
