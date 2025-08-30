@@ -3,7 +3,6 @@ package portscan
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -11,16 +10,34 @@ import (
 	"github.com/ZeroPvlse/razor/config"
 )
 
-func Run(cfg config.Razor) error {
+// newScanner creates an nmap.Scanner configured to mimic `nmap -sC -sV -O`.
+// Additional nmap options can be provided which is primarily useful for tests
+// to override the nmap binary path.
+func newScanner(ctx context.Context, cfg config.Razor, opts ...nmap.Option) (*nmap.Scanner, error) {
+	var ports []string
+	for _, port := range cfg.Scope.IncludePorts {
+		ports = append(ports, fmt.Sprintf("%d", port))
+	}
+	portsStr := strings.Join(ports, ",")
 
+	options := []nmap.Option{
+		nmap.WithTargets(cfg.Scope.Targets...),
+		nmap.WithPorts(portsStr),
+		nmap.WithDefaultScript(),
+		nmap.WithServiceInfo(),
+		nmap.WithOSDetection(),
+	}
+	options = append(options, opts...)
+
+	return nmap.NewScanner(ctx, options...)
+}
+
+// Run executes the port scan using the aggressive options.
+func Run(cfg config.Razor) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	ports := formatPorts(cfg.Scope.IncludePorts)
-
-	scanner, err := nmap.NewScanner(
-		ctx, nmap.WithTargets(cfg.Scope.Targets...), nmap.WithPorts(ports),
-	)
+	scanner, err := newScanner(ctx, cfg)
 	if err != nil {
 		return err
 	}
@@ -32,17 +49,7 @@ func Run(cfg config.Razor) error {
 	if err != nil {
 		return fmt.Errorf("unable to run nmap scan: %w", err)
 	}
+
 	_ = result
 	return nil
-}
-
-func formatPorts(ports []int) string {
-	var b strings.Builder
-	for i, p := range ports {
-		if i > 0 {
-			b.WriteByte(',')
-		}
-		b.WriteString(strconv.Itoa(p))
-	}
-	return b.String()
 }
