@@ -43,12 +43,13 @@ func Run(cfg config.Razor) error {
 	}
 
 	result, warnings, err := scanner.Run()
-	if len(*warnings) > 0 {
+	if warnings != nil && len(*warnings) > 0 {
 		return fmt.Errorf("run finished with warnings: %v", *warnings)
 	}
 	if err != nil {
 		return fmt.Errorf("unable to run nmap scan: %w", err)
 	}
+
 	_ = result
 	return nil
 }

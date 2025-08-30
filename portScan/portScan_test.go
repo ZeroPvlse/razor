@@ -1,5 +1,7 @@
 package portscan
 
+
+
 import (
 	"context"
 	"reflect"
@@ -9,6 +11,20 @@ import (
 	nmap "github.com/Ullaakut/nmap/v3"
 	"github.com/ZeroPvlse/razor/config"
 )
+
+
+func TestFormatPorts(t *testing.T) {
+	tests := []struct {
+		in   []int
+		want string
+	}{
+		{nil, ""},
+		{[]int{80}, "80"},
+		{[]int{80, 443, 8080}, "80,443,8080"},
+	}
+	for _, tt := range tests {
+		if got := formatPorts(tt.in); got != tt.want {
+			t.Errorf("formatPorts(%v) = %q, want %q", tt.in, got, tt.want)
 
 // argsFromScanner returns the nmap arguments for the given scanner by using
 // reflection to access the unexported field. This avoids the need to execute
