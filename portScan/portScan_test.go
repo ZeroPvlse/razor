@@ -1,7 +1,5 @@
 package portscan
 
-
-
 import (
 	"context"
 	"reflect"
@@ -11,7 +9,6 @@ import (
 	nmap "github.com/Ullaakut/nmap/v3"
 	"github.com/ZeroPvlse/razor/config"
 )
-
 
 func TestFormatPorts(t *testing.T) {
 	tests := []struct {
@@ -25,6 +22,9 @@ func TestFormatPorts(t *testing.T) {
 	for _, tt := range tests {
 		if got := formatPorts(tt.in); got != tt.want {
 			t.Errorf("formatPorts(%v) = %q, want %q", tt.in, got, tt.want)
+		}
+	}
+}
 
 // argsFromScanner returns the nmap arguments for the given scanner by using
 // reflection to access the unexported field. This avoids the need to execute
@@ -34,7 +34,16 @@ func argsFromScanner(s *nmap.Scanner) []string {
 	return *(*[]string)(unsafe.Pointer(v.UnsafeAddr()))
 }
 
-func TestNewScannerIncludesDefaultOptions(t *testing.T) {
+func contains(slice []string, val string) bool {
+	for _, s := range slice {
+		if s == val {
+			return true
+		}
+	}
+	return false
+}
+
+func TestNewScannerOptions(t *testing.T) {
 	cfg := config.Razor{
 		Scope: config.Scope{
 			Targets:      []string{"127.0.0.1"},
@@ -42,22 +51,29 @@ func TestNewScannerIncludesDefaultOptions(t *testing.T) {
 		},
 	}
 
+	// By default intrusive options should be disabled
 	scanner, err := newScanner(context.Background(), cfg, nmap.WithBinaryPath("nmap"))
 	if err != nil {
 		t.Fatalf("newScanner returned error: %v", err)
 	}
-
 	args := argsFromScanner(scanner)
+	if contains(args, "-sC") || contains(args, "-O") {
+		t.Errorf("intrusive flags present when allow_intrusive is false: %v", args)
+	}
+	if !contains(args, "-sV") {
+		t.Errorf("service detection flag missing: %v", args)
+	}
+
+	// enabling intrusive options should add the extra flags
+	cfg.Scope.AllowIntrusive = true
+	scanner, err = newScanner(context.Background(), cfg, nmap.WithBinaryPath("nmap"))
+	if err != nil {
+		t.Fatalf("newScanner returned error: %v", err)
+	}
+	args = argsFromScanner(scanner)
 	for _, opt := range []string{"-sC", "-sV", "-O"} {
-		found := false
-		for _, a := range args {
-			if a == opt {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Errorf("expected scanner args to include %q, got %v", opt, args)
+		if !contains(args, opt) {
+			t.Errorf("expected args to include %q when intrusive is enabled, got %v", opt, args)
 		}
 	}
 }
