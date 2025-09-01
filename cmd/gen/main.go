@@ -19,7 +19,7 @@ func main() {
 		os.Exit(2)
 	}
 
-	mess.GenerateTemplate(mess.GenLogo)
+	mess.PrintAscii(mess.GenLogo)
 	mess.GenerateTemplate(os.Args[1])
 
 }

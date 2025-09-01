@@ -1,35 +1,32 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"time"
 
 	"github.com/ZeroPvlse/razor/config"
+	"github.com/ZeroPvlse/razor/defaults"
 	"github.com/ZeroPvlse/razor/mess"
-	"github.com/akamensky/argparse"
 )
 
-// for tomorrow
-// somehow embed nmap and gobuster (doable)
-
-func main() {
-	parser := argparse.NewParser("print", "Prints provided string to stdout")
-
-	// read file
-	run := parser.String("r", "run", &argparse.Options{
-		Required: false,
-		Help:     "",
-	})
-
-	err := parser.Parse(os.Args)
-	if err != nil {
-		fmt.Print(parser.Usage(err))
+func init() {
+	if len(os.Args) > 2 {
+		fmt.Println("too many agrs: usage razor [filename].yaml")
 		os.Exit(1)
 	}
+	if len(os.Args) < 2 {
+		fmt.Println("too little arguments: usage razor-gen [filename].yaml")
+		os.Exit(2)
+	}
+}
 
-	razorCfg, err := config.Load(*run)
+func main() {
+	razorCfg, err := config.Load(os.Args[1])
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "config error: %v\n", err)
 		os.Exit(3)
@@ -53,6 +50,31 @@ func main() {
 	fmt.Printf("- Deliverables: %v\n", razorCfg.Report.Deliverables)
 	fmt.Printf("- Output dir: %s\n", outDir)
 
+	// network scan
+	nmapRes, err := razorCfg.Nmap()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "err: %v", err)
+		os.Exit(4)
+	}
+	fmt.Println(nmapRes)
+
+	// light web enum
+	webEnumRes, err := razorCfg.Enum(context.Background(), defaults.CommonEndpoints)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "err: %v", err)
+		os.Exit(5)
+	}
+	fmt.Println(webEnumRes)
+
+	// intrusive web vulns (XSS/SQLi) — only if allowed
+	if razorCfg.Scope.AllowIntrusive {
+		if err := ensureTools("xsstrike", "sqlmap"); err != nil {
+			fmt.Fprintf(os.Stderr, "tooling error: %v\n", err)
+			os.Exit(6)
+		}
+		razorCfg.XssScan()
+		razorCfg.SQLiScan()
+	}
 }
 
 func sanitize(s string) string {
@@ -70,4 +92,13 @@ func sanitize(s string) string {
 		}
 	}
 	return string(out)
+}
+
+func ensureTools(binaries ...string) error {
+	for _, b := range binaries {
+		if _, err := exec.LookPath(b); err != nil {
+			return fmt.Errorf("%s not installed or not in $PATH", b)
+		}
+	}
+	return nil
 }

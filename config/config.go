@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -294,4 +295,42 @@ func (cfg *Razor) Enum(ctx context.Context, wordlist []string) ([]DirEnumRes, er
 	}
 
 	return enumRes, nil
+}
+
+func (cfg *Razor) XssScan() {
+	for _, target := range cfg.Scope.Targets {
+		cmd := exec.Command("xsstrike", "-u", target)
+
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			fmt.Printf("[!] Error running xsstrike on %s: %v\n", target, err)
+		}
+
+		fmt.Printf("=== Result for %s ===\n%s\n", target, string(out))
+	}
+
+}
+
+func (cfg *Razor) SQLiScan() {
+	for _, target := range cfg.Scope.Targets {
+		args := []string{
+			"-u", target,
+			"--batch",
+			"--random-agent",
+			"--level=2",
+			"--risk=1",
+			"--crawl=2",
+			"--forms",
+			"--technique=BEUSTQ",
+			"--tamper=between",
+		}
+
+		cmd := exec.Command("sqlmap", args...)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			fmt.Printf("error running sqlmap on %s: %v\n", target, err)
+		}
+
+		fmt.Printf("=== SQLi result for %s ===\n%s\n", target, string(out))
+	}
 }

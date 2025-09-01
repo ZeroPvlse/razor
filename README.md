@@ -155,3 +155,9 @@ The authors are not responsible for misuse or damages caused by this tool.
 
 
 
+
+## Requirements 
+Make sure run  (XSStrike is required and this script installs it globally)
+```zsh
+./instal_xsstrike.sh
+```
