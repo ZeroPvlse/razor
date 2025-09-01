@@ -2,7 +2,6 @@ package portscan
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -16,12 +15,7 @@ func Run(cfg config.Razor) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	ports := ""
-	for port := range cfg.Scope.IncludePorts {
-		ports = string(port) + ","
-	}
-
-	ports = strings.Trim(ports, ",")
+	ports := SlicePortToStr(cfg.Scope.IncludePorts)
 
 	scanner, err := nmap.NewScanner(
 		ctx, nmap.WithTargets(cfg.Scope.Targets...), nmap.WithPorts(ports),
@@ -30,15 +24,27 @@ func Run(cfg config.Razor) error {
 		return err
 	}
 
-	result, warnings, err := scanner.Run()
+	_, warnings, err := scanner.Run()
 
 	if len(*warnings) > 0 {
-		return errors.New(fmt.Sprintf("run finished with warnings: %s\n", err))
+		return fmt.Errorf("run finished with warnings: %s\n", err)
 	}
 	if err != nil {
-		return errors.New(fmt.Sprintf("unable to run nmap scan: %s\n", err))
+		return fmt.Errorf("unable to run nmap scan: %s\n", err)
 	}
 
 	return nil
 
+}
+
+func SlicePortToStr(slicePorts []int) string {
+
+	var sb strings.Builder
+
+	for _, port := range slicePorts {
+		sb.WriteString(fmt.Sprintf("%d,", port))
+	}
+
+	ports := strings.Trim(sb.String(), ",")
+	return ports
 }
