@@ -19,7 +19,6 @@ func main() {
 
 	// gen tempate lol
 	template := parser.String("g", "gen", &argparse.Options{
-
 		Required: false,
 		Help:     "Generates YAML template required to operate with value taken from flag",
 	})
@@ -28,7 +27,6 @@ func main() {
 	run := parser.String("r", "run", &argparse.Options{
 		Required: false,
 		Help:     "",
-		Default:  config.ApplyDefaults,
 	})
 
 	err := parser.Parse(os.Args)
@@ -38,13 +36,17 @@ func main() {
 	}
 
 	if *template != "" {
-		mess.GenerateTemplate(*template)
+		if err := mess.GenerateTemplate(*template); err != nil {
+			fmt.Fprintf(os.Stderr, "err: %v\n", err)
+			os.Exit(2)
+		}
+		os.Exit(0)
 	}
 
 	razorCfg, err := config.Load(*run)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "config error: %v\n", err)
-		os.Exit(2)
+		os.Exit(3)
 	}
 
 	mess.PrintAscii()

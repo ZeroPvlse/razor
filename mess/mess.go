@@ -11,14 +11,14 @@ import (
 
 func GenerateTemplate(filename string) error {
 	if strings.Contains(filename, ".") {
-		return errors.New("template file name have contain '.'")
+		return errors.New("template file name have contain '.yaml' suffix")
 	}
 
 	fileSuff := fmt.Sprintf("%s.yaml", filename)
 
 	file, err := os.Create(fileSuff)
 	if err != nil {
-		fmt.Print(err.Error())
+		return errors.New("template file name have contain '.yaml' suffix")
 	}
 	defer file.Close()
 

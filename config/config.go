@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -13,6 +14,10 @@ import (
 	"github.com/ZeroPvlse/razor/defaults"
 	"gopkg.in/yaml.v3"
 )
+
+type Enumerator interface {
+	DirEnum(wordlist []string) (error, []DirEnumRes)
+}
 
 // ISOTime accepts "" or RFC3339 like "2025-09-01T19:00:00Z".
 type ISOTime struct{ time.Time }
@@ -46,6 +51,11 @@ type Scope struct {
 	MaxHosts       int        `yaml:"max_hosts"`
 	AllowIntrusive bool       `yaml:"allow_intrusive"`
 	TimeWindow     TimeWindow `yaml:"time_window"`
+}
+
+type DirEnumRes struct {
+	Endpoint   string
+	StatusCode int
 }
 
 type TimeWindow struct {
@@ -87,14 +97,14 @@ func Load(path string) (*Razor, error) {
 	if err := yaml.Unmarshal(b, &c); err != nil {
 		return nil, err
 	}
-	c.ApplyDefaults()
+	ApplyDefaults(&c)
 	if err := c.validate(); err != nil {
 		return nil, err
 	}
 	return &c, nil
 }
 
-func (c *Razor) ApplyDefaults() {
+func ApplyDefaults(c *Razor) {
 	// Limits
 	if c.Limits.RPSPerHost == 0 {
 		c.Limits.RPSPerHost = 2
@@ -243,4 +253,37 @@ func SlicePortToStr(slicePorts []int) string {
 
 	ports := strings.Trim(sb.String(), ",")
 	return ports
+}
+
+// just worse gobuster lol
+func (cfg *Razor) DirEnum(wordlist []string) (error, []DirEnumRes) {
+
+	var (
+		sb      strings.Builder
+		enumRes []DirEnumRes
+	)
+
+	for _, target := range cfg.Scope.Targets {
+		for _, word := range wordlist {
+			sb.WriteString(fmt.Sprintf("%s/%s", target, word))
+
+			r, err := http.Get(sb.String())
+			if err != nil {
+				return err, enumRes
+			}
+
+			if r.StatusCode >= 200 && r.StatusCode <= 400 {
+				enumRes = append(enumRes, DirEnumRes{
+					Endpoint:   sb.String(),
+					StatusCode: r.StatusCode,
+				})
+			}
+
+		}
+		sb.Reset()
+
+	}
+
+	return nil, enumRes
+
 }
