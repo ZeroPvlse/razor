@@ -1,11 +1,15 @@
+// package that creates and contains all scanning methods + configs
 package config
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
+	"github.com/Ullaakut/nmap/v3"
 	"github.com/ZeroPvlse/razor/defaults"
 	"gopkg.in/yaml.v3"
 )
@@ -83,14 +87,14 @@ func Load(path string) (*Razor, error) {
 	if err := yaml.Unmarshal(b, &c); err != nil {
 		return nil, err
 	}
-	ApplyDefaults(&c)
-	if err := validate(c); err != nil {
+	c.ApplyDefaults()
+	if err := c.validate(); err != nil {
 		return nil, err
 	}
 	return &c, nil
 }
 
-func ApplyDefaults(c *Razor) {
+func (c *Razor) ApplyDefaults() {
 	// Limits
 	if c.Limits.RPSPerHost == 0 {
 		c.Limits.RPSPerHost = 2
@@ -122,7 +126,7 @@ func ApplyDefaults(c *Razor) {
 	}
 }
 
-func validate(c Razor) error {
+func (c *Razor) validate() error {
 	if c.Name == "" {
 		return errors.New("name is required")
 	}
@@ -178,4 +182,65 @@ func validate(c Razor) error {
 		return fmt.Errorf("unsupported cvss %q (only v3.1 supported here)", c.Report.CVSS)
 	}
 	return nil
+}
+
+func (cfg *Razor) Nmap() (*nmap.Run, error) {
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	ports := SlicePortToStr(cfg.Scope.IncludePorts)
+
+	scanner, err := nmap.NewScanner(
+		ctx,
+		nmap.WithTargets(cfg.Scope.Targets...),
+		nmap.WithPorts(ports),
+		nmap.WithAggressiveScan(),  // os detection + service info + default script + trace route
+		nmap.WithFragmentPackets(), // <- we go stealthy as fuck
+		nmap.WithFilterHost(func(h nmap.Host) bool {
+			// if port ain't open we don't want it ;3
+			for idx := range h.Ports {
+				if h.Ports[idx].Status() == "open" {
+					return true
+				}
+			}
+
+			return false
+		}),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create nmap scanner: %v", err)
+	}
+
+	result, warnings, err := scanner.Run()
+	if len(*warnings) > 0 {
+		fmt.Printf("run finished with warnings: %s\n", *warnings)
+		// warnings are fine :3
+	}
+	if err != nil {
+		return nil, fmt.Errorf("nmap scan failed: %v", err)
+	}
+
+	for _, host := range result.Hosts {
+		fmt.Printf("Host %s\n", host.Addresses[0])
+
+		for _, port := range host.Ports {
+			// RTSP == real time streamimg protocol
+			fmt.Printf("\tPort %d open with RTSP service\n", port.ID)
+		}
+	}
+
+	return result, nil
+}
+
+func SlicePortToStr(slicePorts []int) string {
+
+	var sb strings.Builder
+
+	for _, port := range slicePorts {
+		sb.WriteString(fmt.Sprintf("%d,", port))
+	}
+
+	ports := strings.Trim(sb.String(), ",")
+	return ports
 }
