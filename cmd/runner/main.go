@@ -17,12 +17,6 @@ import (
 func main() {
 	parser := argparse.NewParser("print", "Prints provided string to stdout")
 
-	// gen tempate lol
-	template := parser.String("g", "gen", &argparse.Options{
-		Required: false,
-		Help:     "Generates YAML template required to operate with value taken from flag",
-	})
-
 	// read file
 	run := parser.String("r", "run", &argparse.Options{
 		Required: false,
@@ -35,21 +29,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	if *template != "" {
-		if err := mess.GenerateTemplate(*template); err != nil {
-			fmt.Fprintf(os.Stderr, "err: %v\n", err)
-			os.Exit(2)
-		}
-		os.Exit(0)
-	}
-
 	razorCfg, err := config.Load(*run)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "config error: %v\n", err)
 		os.Exit(3)
 	}
 
-	mess.PrintAscii()
+	mess.PrintAscii(mess.MainLogo)
 
 	outDir := razorCfg.Report.OutDir
 	if outDir == "" {

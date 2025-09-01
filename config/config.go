@@ -15,8 +15,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type Enumerator interface {
-	DirEnum(wordlist []string) (error, []DirEnumRes)
+type httpDoer interface {
+	Do(*http.Request) (*http.Response, error)
 }
 
 // ISOTime accepts "" or RFC3339 like "2025-09-01T19:00:00Z".
@@ -43,6 +43,7 @@ type Razor struct {
 	Limits Limits `yaml:"limits"`
 	Report Report `yaml:"report"`
 	Notes  Notes  `yaml:"notes"`
+	HTTP   httpDoer
 }
 
 type Scope struct {
@@ -256,34 +257,41 @@ func SlicePortToStr(slicePorts []int) string {
 }
 
 // just worse gobuster lol
-func (cfg *Razor) DirEnum(wordlist []string) (error, []DirEnumRes) {
-
+func (cfg *Razor) Enum(ctx context.Context, wordlist []string) ([]DirEnumRes, error) {
 	var (
 		sb      strings.Builder
 		enumRes []DirEnumRes
 	)
 
+	client := cfg.HTTP
+	if client == nil {
+		client = http.DefaultClient
+	}
+
 	for _, target := range cfg.Scope.Targets {
 		for _, word := range wordlist {
+			sb.Reset() // important: avoid sticky appends
 			sb.WriteString(fmt.Sprintf("%s/%s", target, word))
 
-			r, err := http.Get(sb.String())
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, sb.String(), nil)
 			if err != nil {
-				return err, enumRes
+				return enumRes, err
 			}
+
+			r, err := client.Do(req)
+			if err != nil {
+				return enumRes, err
+			}
+			_ = r.Body.Close()
 
 			if r.StatusCode >= 200 && r.StatusCode <= 400 {
 				enumRes = append(enumRes, DirEnumRes{
-					Endpoint:   sb.String(),
+					Endpoint:   req.URL.String(),
 					StatusCode: r.StatusCode,
 				})
 			}
-
 		}
-		sb.Reset()
-
 	}
 
-	return nil, enumRes
-
+	return enumRes, nil
 }
